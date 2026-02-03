@@ -30,6 +30,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isScanning = useRef(false);
 
   useEffect(() => {
     if (surnames.length > 0 && !surname) {
@@ -96,13 +97,23 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
         await scanner.start(
           { facingMode: "environment" },
           {
-            fps: 10,
-            qrbox: { width: 250, height: 250 }
+            fps: 5, // Reduced FPS for more stable scanning
+            qrbox: { width: 300, height: 150 }, // Wider box for barcodes
+            aspectRatio: 2.0 // Better for horizontal barcodes
           },
           (decodedText) => {
-            // Success callback
-            setId(decodedText);
-            stopScanner();
+            // Success callback - prevent multiple simultaneous scans
+            if (isScanning.current) return;
+
+            isScanning.current = true;
+            console.log("Scanned:", decodedText);
+
+            // Wait a bit to ensure we got the full barcode
+            setTimeout(() => {
+              setId(decodedText);
+              stopScanner();
+              isScanning.current = false;
+            }, 100);
           },
           (errorMessage) => {
             // Error callback (continuous, ignore)
@@ -118,6 +129,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
   };
 
   const stopScanner = async () => {
+    isScanning.current = false;
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -166,11 +178,14 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
         </div>
         {showScanner && (
            <div className="bg-gray-900 p-4 rounded-lg">
-             <div className="text-white text-sm mb-2 text-center">
-               Scan QR Code or Barcode
+             <div className="text-white text-sm mb-2 text-center font-medium">
+               📷 Point camera at QR Code or Barcode
+             </div>
+             <div className="text-white text-xs mb-3 text-center text-gray-400">
+               For barcodes: hold phone horizontally for best results
              </div>
              <div id="qr-reader" style={{ width: '100%' }}></div>
-             <button type="button" onClick={stopScanner} className="w-full mt-2 bg-red-500 hover:bg-red-600 text-white py-2 rounded-md font-medium">
+             <button type="button" onClick={stopScanner} className="w-full mt-3 bg-red-500 hover:bg-red-600 text-white py-2 rounded-md font-medium">
                Close Scanner
              </button>
            </div>
