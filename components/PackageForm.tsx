@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Package, User } from '../types';
 import { QrCodeIcon } from './icons/QrCodeIcon';
-import { QrReader } from 'react-qr-reader';
+import { Html5Qrcode } from 'html5-qrcode';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import AddUserModal from './AddUserModal';
 
@@ -29,6 +29,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
   const [customMessage, setCustomMessage] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     if (surnames.length > 0 && !surname) {
@@ -83,15 +84,60 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
     }
   };
 
-  const handleScan = (result: any, error: any) => {
-    if (!!result) {
-      setId(result?.text);
-      setShowScanner(false);
+  const startScanner = async () => {
+    setShowScanner(true);
+
+    // Wait for DOM to render
+    setTimeout(async () => {
+      try {
+        const scanner = new Html5Qrcode("qr-reader");
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }
+          },
+          (decodedText) => {
+            // Success callback
+            setId(decodedText);
+            stopScanner();
+          },
+          (errorMessage) => {
+            // Error callback (continuous, ignore)
+            console.debug(errorMessage);
+          }
+        );
+      } catch (err) {
+        console.error("Failed to start scanner:", err);
+        setError("Failed to access camera. Please check permissions.");
+        setShowScanner(false);
+      }
+    }, 100);
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+        scannerRef.current = null;
+      } catch (err) {
+        console.error("Error stopping scanner:", err);
+      }
     }
-    if (!!error) {
-      console.info(error);
-    }
-  }
+    setShowScanner(false);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(console.error);
+      }
+    };
+  }, []);
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
@@ -111,7 +157,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
             />
             <button
               type="button"
-              onClick={() => setShowScanner(!showScanner)}
+              onClick={showScanner ? stopScanner : startScanner}
               className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-600 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500"
             >
               <QrCodeIcon className="h-5 w-5"/>
@@ -119,14 +165,14 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
           </div>
         </div>
         {showScanner && (
-           <div className="bg-gray-900 p-2 rounded-lg">
-             <QrReader
-                onResult={handleScan}
-                constraints={{ facingMode: 'environment' }}
-                videoContainerStyle={{ width: '100%', paddingTop: '100%', position: 'relative' }}
-                videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-             />
-             <button type="button" onClick={() => setShowScanner(false)} className="w-full mt-2 bg-red-500 text-white py-1 rounded-md">Close Scanner</button>
+           <div className="bg-gray-900 p-4 rounded-lg">
+             <div className="text-white text-sm mb-2 text-center">
+               Scan QR Code or Barcode
+             </div>
+             <div id="qr-reader" style={{ width: '100%' }}></div>
+             <button type="button" onClick={stopScanner} className="w-full mt-2 bg-red-500 hover:bg-red-600 text-white py-2 rounded-md font-medium">
+               Close Scanner
+             </button>
            </div>
         )}
         <div>
@@ -227,8 +273,8 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
           {!isSubmitting && <PlusCircleIcon className="h-5 w-5"/>}
         </button>
       </form>
-      
-      <AddUserModal 
+
+      <AddUserModal
         isOpen={showAddUserModal}
         onClose={() => setShowAddUserModal(false)}
         onAddUser={onAddUser}
@@ -236,7 +282,5 @@ const PackageForm: React.FC<PackageFormProps> = ({ onAddPackage, surnames, users
     </div>
   );
 };
-// To make QR Reader work from CDN:
-(window as any).React = React;
 
 export default PackageForm;
