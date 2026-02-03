@@ -1,0 +1,8 @@
+
+{
+  "name": "Storage Unit Inventory Tracker",
+  "description": "A frontend application for managing packages in a storage unit. This is a demonstration of the client-side functionality. It features separate views for Admins (who can add and manage packages using a QR scanner) and Users (who can view and filter packages). All backend interactions are simulated with mock data.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
